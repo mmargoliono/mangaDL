@@ -32,6 +32,17 @@ img = soup.find(id='comic_page')
 img_base = img['src'][:-4 - digits ]
 img_ext = img['src'][-4:]
 
+# Prepare temp dl folder
+try:
+    os.makedirs(temp_dl_folder)
+except OSError:
+    pass
+
+try:
+    os.remove(output)
+except OSError:
+    pass
+
 for n in range(1, page_count + 1):
     nImageBase = img_base + digits_format.format(n)
     nUrl = nImageBase + img_ext
@@ -55,7 +66,10 @@ zipf = zipfile.ZipFile(output, 'w')
 
 for root, dirs, files in os.walk(temp_dl_folder):
     for file in files:
-        zipf.write(os.path.join(root, file), file)
+        file_path = os.path.join(root, file)
+        zipf.write(file_path, file)
+        os.remove(file_path)
 
 zipf.close()
 
+os.rmdir(temp_dl_folder)
