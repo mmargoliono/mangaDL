@@ -11,7 +11,7 @@ def setup_arguments():
     parser = argparse.ArgumentParser()
     parser.add_argument('url', help = 'Url of any page within a chapter')
     parser.add_argument('-o', '--output', help = 'Archive output directory')
-    parser.add_argument('-v', '--volume', help = 'Download as volume. Indicate how many chapters should be fetched')
+    parser.add_argument('-c', '--chapters', type=int, help = 'How many chapters should be downloaded')
     return parser.parse_args()
 
 def get_page_content(url):
@@ -59,36 +59,51 @@ args = setup_arguments()
 
 output = "/tmp/comics.cbz"
 temp_dl_folder = "/tmp/tmp_manga/"
+chapters = 1
 
 url = args.url
 if args.output:
     output = args.output
 
-content = get_page_content(url)
-soup = BeautifulSoup(content)
+if args.chapters:
+    chapters = args.chapters
 
-pages = soup.find(id='page_select')
-page_count = len(pages.find_all('option'))
+for ch in range(1, chapters + 1):
+    content = get_page_content(url)
+    soup = BeautifulSoup(content)
 
-digits = len(str(page_count))
-digits_format = "{0:0" + str(digits) + "d}"
+    pages = soup.find(id='page_select')
+    page_count = len(pages.find_all('option'))
 
-img = soup.find(id='comic_page')
-#asssume three character extension plus dot
-img_base = img['src'][:-4 - digits ]
-img_ext = img['src'][-4:]
+    if ch < chapters:
+        chapter_select = soup.find("select", attrs = {"name":"chapter_select"})
+        current_chapter = chapter_select.find("option", selected="selected")
+        next_chapter = current_chapter.previous_sibling
+        url = next_chapter['value']
 
-# Prepare temp dl folder
-try:
-    os.makedirs(temp_dl_folder)
-except OSError:
-    pass
+    digits = len(str(page_count))
+    digits_format = "{0:0" + str(digits) + "d}"
 
-try:
-    os.remove(output)
-except OSError:
-    pass
+    img = soup.find(id='comic_page')
+    #asssume three character extension plus dot
+    img_base = img['src'][:-4 - digits ]
+    img_ext = img['src'][-4:]
 
-download_chapter_images(temp_dl_folder, img_base, img_ext)
-zip_and_zap(temp_dl_folder, output)
+    # Prepare temp dl folder
+    try:
+        os.makedirs(temp_dl_folder)
+    except OSError:
+        pass
+
+    chapter_output = output
+    if chapters > 1:
+        chapter_output = output + "ch-" + str(ch) + ".cbz"
+
+    try:
+        os.remove(chapter_output)
+    except OSError:
+        pass
+
+    download_chapter_images(temp_dl_folder, img_base, img_ext)
+    zip_and_zap(temp_dl_folder, chapter_output)
 
