@@ -2,6 +2,8 @@ import urllib.request as urlReq
 import os
 import zipfile
 import argparse
+import io
+import gzip
 
 from bs4 import BeautifulSoup
 
@@ -19,6 +21,11 @@ if args.output:
 
 response = urlReq.urlopen(url)
 content = response.read()
+if response.headers['Content-Encoding'] == 'gzip':
+    compressedstream = io.BytesIO(content)
+    gzipper = gzip.GzipFile(fileobj=compressedstream, mode="rb")
+    content = gzipper.read()
+
 soup = BeautifulSoup(content)
 
 pages = soup.find(id='page_select')
