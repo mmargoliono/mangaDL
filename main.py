@@ -7,10 +7,55 @@ import gzip
 
 from bs4 import BeautifulSoup
 
-parser = argparse.ArgumentParser()
-parser.add_argument('url', help = 'Url of any page within a chapter')
-parser.add_argument('-o', '--output', help = 'Archive output directory')
-args = parser.parse_args()
+def setup_arguments():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('url', help = 'Url of any page within a chapter')
+    parser.add_argument('-o', '--output', help = 'Archive output directory')
+    parser.add_argument('-v', '--volume', help = 'Download as volume. Indicate how many chapters should be fetched')
+    return parser.parse_args()
+
+def get_page_content(url):
+    response = urlReq.urlopen(url)
+    content = response.read()
+    if response.headers['Content-Encoding'] == 'gzip':
+        compressedstream = io.BytesIO(content)
+        gzipper = gzip.GzipFile(fileobj=compressedstream, mode="rb")
+        content = gzipper.read()
+    return content
+
+def zip_and_zap(target_folder, output_file):
+    zipf = zipfile.ZipFile(output_file, 'w')
+
+    for root, dirs, files in os.walk(target_folder):
+        for file in files:
+            file_path = os.path.join(root, file)
+            zipf.write(file_path, file)
+            os.remove(file_path)
+
+    zipf.close()
+    os.rmdir(target_folder)
+
+def download_chapter_images(target_folder, base_image_url, default_ext):
+    for n in range(1, page_count + 1):
+        nImageBase = base_image_url + digits_format.format(n)
+        nUrl = nImageBase + default_ext
+        print (nUrl)
+
+        try:
+            urlReq.urlretrieve(nUrl, target_folder + digits_format.format(n) + default_ext)
+        except urlReq.HTTPError as E:
+            if default_ext != '.jpg':
+                nUrl = nImageBase + '.jpg'
+            else:
+                nUrl = nImageBase + '.png'
+
+            try:
+                urlReq.urlretrieve(nUrl, target_folder + digits_format.format(n) + default_ext)
+            except urlReq.HTTPError as innerE:
+                print ('Unexpected case')
+
+
+args = setup_arguments()
 
 output = "/tmp/comics.cbz"
 temp_dl_folder = "/tmp/tmp_manga/"
@@ -19,13 +64,7 @@ url = args.url
 if args.output:
     output = args.output
 
-response = urlReq.urlopen(url)
-content = response.read()
-if response.headers['Content-Encoding'] == 'gzip':
-    compressedstream = io.BytesIO(content)
-    gzipper = gzip.GzipFile(fileobj=compressedstream, mode="rb")
-    content = gzipper.read()
-
+content = get_page_content(url)
 soup = BeautifulSoup(content)
 
 pages = soup.find(id='page_select')
@@ -50,33 +89,6 @@ try:
 except OSError:
     pass
 
-for n in range(1, page_count + 1):
-    nImageBase = img_base + digits_format.format(n)
-    nUrl = nImageBase + img_ext
-    print (nUrl)
+download_chapter_images(temp_dl_folder, img_base, img_ext)
+zip_and_zap(temp_dl_folder, output)
 
-    try:
-        urlReq.urlretrieve(nUrl, temp_dl_folder + digits_format.format(n) + img_ext)
-    except urlReq.HTTPError as E:
-        if img_ext != '.jpg':
-            nUrl = nImageBase + '.jpg'
-        else:
-            nUrl = nImageBase + '.png'
-        
-        try: 
-            urlReq.urlretrieve(nUrl, temp_dl_folder + digits_format.format(n) + img_ext)
-        except urlReq.HTTPError as innerE:
-            print ('Unexpected case')
-
-
-zipf = zipfile.ZipFile(output, 'w')
-
-for root, dirs, files in os.walk(temp_dl_folder):
-    for file in files:
-        file_path = os.path.join(root, file)
-        zipf.write(file_path, file)
-        os.remove(file_path)
-
-zipf.close()
-
-os.rmdir(temp_dl_folder)
