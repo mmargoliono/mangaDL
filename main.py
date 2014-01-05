@@ -10,8 +10,9 @@ from bs4 import BeautifulSoup
 def setup_arguments():
     parser = argparse.ArgumentParser()
     parser.add_argument('url', help = 'Url of any page within a chapter')
-    parser.add_argument('-o', '--output', help = 'Archive output directory')
-    parser.add_argument('-c', '--chapters', type=int, help = 'How many chapters should be downloaded')
+    parser.add_argument('-o', '--output', help = 'Archive output')
+    parser.add_argument('-c', '--chapters', type = int, help = 'How many chapters should be downloaded')
+    parser.add_argument('-i', '--initialchapter', type = int, help = 'Initial number for Chapter sequence')
     return parser.parse_args()
 
 def get_page_content(url):
@@ -58,8 +59,10 @@ def download_chapter_images(target_folder, base_image_url, default_ext):
 args = setup_arguments()
 
 output = "/tmp/comics.cbz"
-temp_dl_folder = "/tmp/tmp_manga/"
+temp_dl_folder = "/tmp/tmp_manga/images/"
+temp_chapter_folder = "/tmp/tmp_manga/chapters/"
 chapters = 1
+initial_chapter = 1
 
 url = args.url
 if args.output:
@@ -68,18 +71,30 @@ if args.output:
 if args.chapters:
     chapters = args.chapters
 
-for ch in range(1, chapters + 1):
+if args.initialchapter:
+    initial_chapter = args.initialchapter
+
+chapter_names = []
+
+for ch in range(0, chapters):
+    chapter_output = output
+    chapter_archive = "ch-" + str(ch + initial_chapter) + ".cbz"
+
+    if chapters > 1:
+        chapter_output = temp_chapter_folder + chapter_archive
+
     content = get_page_content(url)
     soup = BeautifulSoup(content)
 
     pages = soup.find(id='page_select')
     page_count = len(pages.find_all('option'))
 
-    if ch < chapters:
-        chapter_select = soup.find("select", attrs = {"name":"chapter_select"})
-        current_chapter = chapter_select.find("option", selected="selected")
-        next_chapter = current_chapter.previous_sibling
-        url = next_chapter['value']
+    chapter_select = soup.find("select", attrs = {"name":"chapter_select"})
+    current_chapter = chapter_select.find("option", selected="selected")
+    next_chapter = current_chapter.previous_sibling
+    url = next_chapter['value']
+    chapter_title = current_chapter.string
+    chapter_names.append(chapter_archive + ':' + chapter_title)
 
     digits = len(str(page_count))
     digits_format = "{0:0" + str(digits) + "d}"
@@ -95,9 +110,10 @@ for ch in range(1, chapters + 1):
     except OSError:
         pass
 
-    chapter_output = output
-    if chapters > 1:
-        chapter_output = output + "ch-" + str(ch) + ".cbz"
+    try:
+        os.makedirs(temp_chapter_folder)
+    except OSError:
+        pass
 
     try:
         os.remove(chapter_output)
@@ -107,3 +123,7 @@ for ch in range(1, chapters + 1):
     download_chapter_images(temp_dl_folder, img_base, img_ext)
     zip_and_zap(temp_dl_folder, chapter_output)
 
+if chapters > 1:
+    with open(temp_chapter_folder + 'comics.txt', 'w') as comics_info:
+        comics_info.write('\n'.join(chapter_names))
+    zip_and_zap(temp_chapter_folder, output)
