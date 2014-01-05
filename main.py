@@ -36,14 +36,15 @@ def zip_and_zap(target_folder, output_file):
     zipf.close()
     os.rmdir(target_folder)
 
-def download_chapter_images(target_folder, base_image_url, default_ext):
+def download_chapter_images(target_folder, base_image_url, default_ext, page_count):
     for n in range(1, page_count + 1):
-        nImageBase = base_image_url + digits_format.format(n)
+        formatted_n = str(n).zfill(digits)
+        nImageBase = base_image_url + formatted_n
         nUrl = nImageBase + default_ext
         print (nUrl)
 
         try:
-            urlReq.urlretrieve(nUrl, target_folder + digits_format.format(n) + default_ext)
+            urlReq.urlretrieve(nUrl, target_folder + formatted_n + default_ext)
         except urlReq.HTTPError as E:
             if default_ext != '.jpg':
                 nUrl = nImageBase + '.jpg'
@@ -51,7 +52,7 @@ def download_chapter_images(target_folder, base_image_url, default_ext):
                 nUrl = nImageBase + '.png'
 
             try:
-                urlReq.urlretrieve(nUrl, target_folder + digits_format.format(n) + default_ext)
+                urlReq.urlretrieve(nUrl, target_folder + formatted_n + default_ext)
             except urlReq.HTTPError as innerE:
                 print ('Unexpected case')
 
@@ -78,7 +79,8 @@ chapter_names = []
 
 for ch in range(0, chapters):
     chapter_output = output
-    chapter_archive = "ch-" + str(ch + initial_chapter) + ".cbz"
+    chapter_archive = "ch-" + str(ch + initial_chapter).zfill(3) + ".cbz"
+    print (chapter_archive)
 
     if chapters > 1:
         chapter_output = temp_chapter_folder + chapter_archive
@@ -97,7 +99,6 @@ for ch in range(0, chapters):
     chapter_names.append(chapter_archive + ':' + chapter_title)
 
     digits = len(str(page_count))
-    digits_format = "{0:0" + str(digits) + "d}"
 
     img = soup.find(id='comic_page')
     #asssume three character extension plus dot
@@ -120,7 +121,7 @@ for ch in range(0, chapters):
     except OSError:
         pass
 
-    download_chapter_images(temp_dl_folder, img_base, img_ext)
+    download_chapter_images(temp_dl_folder, img_base, img_ext, page_count)
     zip_and_zap(temp_dl_folder, chapter_output)
 
 if chapters > 1:
