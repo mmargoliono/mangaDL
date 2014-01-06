@@ -4,6 +4,7 @@ import zipfile
 import argparse
 import io
 import gzip
+import re
 
 from bs4 import BeautifulSoup
 
@@ -13,6 +14,7 @@ def setup_arguments():
     parser.add_argument('-o', '--output', help = 'Archive output')
     parser.add_argument('-c', '--chapters', type = int, help = 'How many chapters should be downloaded')
     parser.add_argument('-i', '--initialchapter', type = int, help = 'Initial number for Chapter sequence')
+    parser.add_argument('-q', '--questionable', action="store_true", help = 'Some hack for testing purposes')
     return parser.parse_args()
 
 def get_page_content(url):
@@ -25,6 +27,11 @@ def get_page_content(url):
     return content
 
 def zip_and_zap(target_folder, output_file):
+    try:
+        os.remove(output_file)
+    except OSError:
+        pass
+
     zipf = zipfile.ZipFile(output_file, 'w')
 
     for root, dirs, files in os.walk(target_folder):
@@ -34,9 +41,14 @@ def zip_and_zap(target_folder, output_file):
             os.remove(file_path)
 
     zipf.close()
-    os.rmdir(target_folder)
 
-def download_chapter_images(target_folder, base_image_url, default_ext, page_count):
+def download_chapter_images(target_folder, img_url, page_count):
+    digits = len(str(page_count))
+
+    #asssume three character extension plus dot
+    base_image_url = img_url[:-4 - digits ]
+    default_ext = img_url[-4:]
+
     for n in range(1, page_count + 1):
         formatted_n = str(n).zfill(digits)
         nImageBase = base_image_url + formatted_n
@@ -77,52 +89,55 @@ if args.initialchapter:
 
 chapter_names = []
 
-for ch in range(0, chapters):
-    chapter_output = output
-    chapter_archive = "ch-" + str(ch + initial_chapter).zfill(3) + ".cbz"
-    print (chapter_archive)
+# Prepare temp dl folder
+try:
+    os.makedirs(temp_dl_folder)
+except OSError:
+    pass
 
-    if chapters > 1:
-        chapter_output = temp_chapter_folder + chapter_archive
+if chapters > 1:
+    try:
+        os.makedirs(temp_chapter_folder)
+    except OSError:
+        pass
+
+ch = 0
+
+while ch < chapters:
+    chapter_output = output
+    chapter_archive = "ch " + str(ch + initial_chapter).zfill(3) + ".cbz"
 
     content = get_page_content(url)
     soup = BeautifulSoup(content)
 
     pages = soup.find(id='page_select')
     page_count = len(pages.find_all('option'))
+    img = soup.find(id='comic_page')
 
     chapter_select = soup.find("select", attrs = {"name":"chapter_select"})
     current_chapter = chapter_select.find("option", selected="selected")
     next_chapter = current_chapter.previous_sibling
     url = next_chapter['value']
     chapter_title = current_chapter.string
+
+    if (args.questionable):
+        # Remove v2 or v3 in chapter name
+        chapter_title = re.sub(r'(.*\d+)(?:v|V)\d(.*)',r'\1\2', chapter_title)
+        if (re.match(r'.*\d+\.\d.*', chapter_title)):
+            print (" omake? " + chapter_title)
+            ch = ch - 1
+            chapter_archive = "ch " +str(ch + initial_chapter).zfill(3) + ".5.cbz"
+
     chapter_names.append(chapter_archive + ':' + chapter_title)
 
-    digits = len(str(page_count))
+    if chapters > 1:
+        chapter_output = temp_chapter_folder + chapter_archive
 
-    img = soup.find(id='comic_page')
-    #asssume three character extension plus dot
-    img_base = img['src'][:-4 - digits ]
-    img_ext = img['src'][-4:]
-
-    # Prepare temp dl folder
-    try:
-        os.makedirs(temp_dl_folder)
-    except OSError:
-        pass
-
-    try:
-        os.makedirs(temp_chapter_folder)
-    except OSError:
-        pass
-
-    try:
-        os.remove(chapter_output)
-    except OSError:
-        pass
-
-    download_chapter_images(temp_dl_folder, img_base, img_ext, page_count)
+    print(chapter_archive)
+    download_chapter_images(temp_dl_folder, img['src'], page_count)
     zip_and_zap(temp_dl_folder, chapter_output)
+
+    ch = ch + 1
 
 if chapters > 1:
     with open(temp_chapter_folder + 'comics.txt', 'w') as comics_info:
