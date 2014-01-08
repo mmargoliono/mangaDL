@@ -1,3 +1,5 @@
+#/usr/bin/python3
+
 import urllib.request as urlReq
 import os
 import zipfile
@@ -11,9 +13,9 @@ from bs4 import BeautifulSoup
 def setup_arguments():
     parser = argparse.ArgumentParser()
     parser.add_argument('url', help = 'Url of any page within a chapter')
-    parser.add_argument('-o', '--output', help = 'Archive output')
-    parser.add_argument('-c', '--chapters', type = int, help = 'How many chapters should be downloaded')
-    parser.add_argument('-i', '--initialchapter', type = int, help = 'Initial number for Chapter sequence')
+    parser.add_argument('-o', '--output', help = 'Archive output', default = "/tmp/comics.cbz")
+    parser.add_argument('-c', '--chapters', type = int, help = 'How many chapters should be downloaded', default=1)
+    parser.add_argument('-i', '--initialchapter', type = int, help = 'Initial number for Chapter sequence', default=1)
     parser.add_argument('-q', '--questionable', action="store_true", help = 'Some hack for testing purposes')
     return parser.parse_args()
 
@@ -71,21 +73,10 @@ def download_chapter_images(target_folder, img_url, page_count):
 
 args = setup_arguments()
 
-output = "/tmp/comics.cbz"
 temp_dl_folder = "/tmp/tmp_manga/images/"
 temp_chapter_folder = "/tmp/tmp_manga/chapters/"
-chapters = 1
-initial_chapter = 1
 
 url = args.url
-if args.output:
-    output = args.output
-
-if args.chapters:
-    chapters = args.chapters
-
-if args.initialchapter:
-    initial_chapter = args.initialchapter
 
 chapter_names = []
 
@@ -95,7 +86,7 @@ try:
 except OSError:
     pass
 
-if chapters > 1:
+if args.chapters > 1:
     try:
         os.makedirs(temp_chapter_folder)
     except OSError:
@@ -103,9 +94,9 @@ if chapters > 1:
 
 ch = 0
 
-while ch < chapters:
-    chapter_output = output
-    chapter_archive = "ch " + str(ch + initial_chapter).zfill(3) + ".cbz"
+while ch < args.chapters:
+    chapter_output = args.output
+    chapter_archive = "ch " + str(ch + args.initialchapter).zfill(3) + ".cbz"
 
     content = get_page_content(url)
     soup = BeautifulSoup(content)
@@ -117,7 +108,10 @@ while ch < chapters:
     chapter_select = soup.find("select", attrs = {"name":"chapter_select"})
     current_chapter = chapter_select.find("option", selected="selected")
     next_chapter = current_chapter.previous_sibling
-    url = next_chapter['value']
+
+    if ch != args.chapters - 1:
+        url = next_chapter['value']
+
     chapter_title = current_chapter.string
 
     if (args.questionable):
@@ -126,11 +120,11 @@ while ch < chapters:
         if (re.match(r'.*\d+\.\d.*', chapter_title)):
             print (" omake? " + chapter_title)
             ch = ch - 1
-            chapter_archive = "ch " +str(ch + initial_chapter).zfill(3) + ".5.cbz"
+            chapter_archive = "ch " +str(ch + args.initialchapter).zfill(3) + ".5.cbz"
 
     chapter_names.append(chapter_archive + ':' + chapter_title)
 
-    if chapters > 1:
+    if args.chapters > 1:
         chapter_output = temp_chapter_folder + chapter_archive
 
     print(chapter_archive)
@@ -139,7 +133,7 @@ while ch < chapters:
 
     ch = ch + 1
 
-if chapters > 1:
+if args.chapters > 1:
     with open(temp_chapter_folder + 'comics.txt', 'w') as comics_info:
         comics_info.write('\n'.join(chapter_names))
-    zip_and_zap(temp_chapter_folder, output)
+    zip_and_zap(temp_chapter_folder, args.output)
