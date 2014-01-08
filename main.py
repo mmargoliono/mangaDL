@@ -17,6 +17,8 @@ def setup_arguments():
     parser.add_argument('-c', '--chapters', type = int, help = 'How many chapters should be downloaded', default=1)
     parser.add_argument('-i', '--initialchapter', type = int, help = 'Initial number for Chapter sequence', default=1)
     parser.add_argument('-q', '--questionable', action="store_true", help = 'Some hack for testing purposes')
+    parser.add_argument('-e', '--exact', action="store_true", help = 'Get next image by parsing instead of guessing. ' +
+                                                                     'This is slower but more accurate.')
     return parser.parse_args()
 
 def get_page_content(url):
@@ -27,6 +29,10 @@ def get_page_content(url):
         gzipper = gzip.GzipFile(fileobj=compressedstream, mode="rb")
         content = gzipper.read()
     return content
+
+def get_image_url(soup):
+    img = soup.find(id='comic_page')
+    return img['src']
 
 def zip_and_zap(target_folder, output_file):
     try:
@@ -44,7 +50,8 @@ def zip_and_zap(target_folder, output_file):
 
     zipf.close()
 
-def download_chapter_images(target_folder, img_url, page_count):
+def download_chapter_images(target_folder, soup, page_count):
+    img_url = get_image_url(soup)
     digits = len(str(page_count))
 
     #asssume three character extension plus dot
@@ -53,22 +60,55 @@ def download_chapter_images(target_folder, img_url, page_count):
 
     for n in range(1, page_count + 1):
         formatted_n = str(n).zfill(digits)
-        nImageBase = base_image_url + formatted_n
-        nUrl = nImageBase + default_ext
-        print (nUrl)
+
+        if args.exact:
+            url, soup = get_next_image_url_by_parse(soup)
+        else:
+            url = get_next_image_url_by_pattern(base_image_url, default_ext, formatted_n)
+
+        target_file = target_folder + formatted_n + url[-4:]
+
+        if args.exact:
+            download_image(url, target_file, False)
+        else:
+            download_chapter_image_by_trial(url, target_file);
+
+
+def get_next_image_url_by_pattern(base_image_url, default_ext, formmated_n):
+    return base_image_url + formatted_n + default_ext
+
+def get_next_image_url_by_parse(soup):
+    img = soup.find(id='comic_page')
+    next_page_url = img.parent['href']
+    content = get_page_content(next_page_url)
+    soup = BeautifulSoup(content)
+    return img['src'], soup
+
+def download_chapter_image_by_trial(url, target_file):
+    try:
+        download_image(url, target_file, True)
+    except urlReq.HTTPError as E:
+        if url[-4:] != '.jpg':
+            url = url[:4] + ".jpg"
+            target_file = target_file[:4] + ".jpg"
+        else:
+            url = url[:4] + ".png"
+            target_file = target_file[:4] + ".png"
 
         try:
-            urlReq.urlretrieve(nUrl, target_folder + formatted_n + default_ext)
-        except urlReq.HTTPError as E:
-            if default_ext != '.jpg':
-                nUrl = nImageBase + '.jpg'
-            else:
-                nUrl = nImageBase + '.png'
+            download_image(url, target_file, True)
+        except urlReq.HTTPError as innerE:
+            print ('Unexpected case')
 
-            try:
-                urlReq.urlretrieve(nUrl, target_folder + formatted_n + default_ext)
-            except urlReq.HTTPError as innerE:
-                print ('Unexpected case')
+
+def download_image(url, target_file, should_throw):
+    try:
+        urlReq.urlretrieve(url, target_file)
+        print (url + ' -> ' + target_file)
+    except urlReq.HTTPError as E:
+        print ('Can not get ' + url)
+        if (should_throw):
+            raise urlReq.HTTPError(E)
 
 
 args = setup_arguments()
@@ -103,7 +143,6 @@ while ch < args.chapters:
 
     pages = soup.find(id='page_select')
     page_count = len(pages.find_all('option'))
-    img = soup.find(id='comic_page')
 
     chapter_select = soup.find("select", attrs = {"name":"chapter_select"})
     current_chapter = chapter_select.find("option", selected="selected")
@@ -128,7 +167,7 @@ while ch < args.chapters:
         chapter_output = temp_chapter_folder + chapter_archive
 
     print(chapter_archive)
-    download_chapter_images(temp_dl_folder, img['src'], page_count)
+    download_chapter_images(temp_dl_folder, soup, page_count)
     zip_and_zap(temp_dl_folder, chapter_output)
 
     ch = ch + 1
