@@ -1,4 +1,4 @@
-#/usr/bin/python3
+#!/usr/bin/env python
 
 import urllib.request as urlReq
 import os
@@ -16,7 +16,6 @@ def setup_arguments():
     parser.add_argument('-o', '--output', help = 'Archive output', default = "/tmp/comics.cbz")
     parser.add_argument('-c', '--chapters', type = int, help = 'How many chapters should be downloaded', default=1)
     parser.add_argument('-i', '--initialchapter', type = int, help = 'Initial number for Chapter sequence', default=1)
-    parser.add_argument('-q', '--questionable', action="store_true", help = 'Some hack for testing purposes')
     parser.add_argument('-e', '--exact', action="store_true", help = 'Get next image by parsing instead of guessing. ' +
                                                                      'This is slower but more accurate.')
     return parser.parse_args()
@@ -29,6 +28,10 @@ def get_page_content(url):
         gzipper = gzip.GzipFile(fileobj=compressedstream, mode="rb")
         content = gzipper.read()
     return content
+
+def get_page_soup(url):
+    content = get_page_content(url)
+    return BeautifulSoup(content)
 
 def get_image_url(soup):
     img = soup.find(id='comic_page')
@@ -50,50 +53,50 @@ def zip_and_zap(target_folder, output_file):
 
     zipf.close()
 
-def download_chapter_images(target_folder, soup, page_count):
-    img_url = get_image_url(soup)
+def download_chapter_images(target_folder, soup, exact):
+    page_count = get_page_count(soup)
     digits = len(str(page_count))
-
-    #asssume three character extension plus dot
-    base_image_url = img_url[:-4 - digits ]
-    default_ext = img_url[-4:]
 
     for n in range(1, page_count + 1):
         formatted_n = str(n).zfill(digits)
 
-        if args.exact:
-            url, soup = get_next_image_url_by_parse(soup)
+        if exact:
+            url = get_image_url(soup)
+            soup = get_next_page_soup(soup)
         else:
-            url = get_next_image_url_by_pattern(base_image_url, default_ext, formatted_n)
+            url = get_next_image_url_by_pattern(soup, digits, formatted_n)
 
         target_file = target_folder + formatted_n + url[-4:]
 
-        if args.exact:
+        if exact:
             download_image(url, target_file, False)
         else:
             download_chapter_image_by_trial(url, target_file);
 
 
-def get_next_image_url_by_pattern(base_image_url, default_ext, formmated_n):
+def get_next_image_url_by_pattern(soup, digits, formatted_n):
+    img_url = get_image_url(soup)
+
+    #asssume three character extension plus dot
+    base_image_url = img_url[:-4 - digits ]
+    default_ext = img_url[-4:]
     return base_image_url + formatted_n + default_ext
 
-def get_next_image_url_by_parse(soup):
+def get_next_page_soup(soup):
     img = soup.find(id='comic_page')
     next_page_url = img.parent['href']
-    content = get_page_content(next_page_url)
-    soup = BeautifulSoup(content)
-    return img['src'], soup
+    return get_page_soup(next_page_url)
 
 def download_chapter_image_by_trial(url, target_file):
     try:
         download_image(url, target_file, True)
     except urlReq.HTTPError as E:
         if url[-4:] != '.jpg':
-            url = url[:4] + ".jpg"
-            target_file = target_file[:4] + ".jpg"
+            url = url[:-4] + ".jpg"
+            target_file = target_file[:-4] + ".jpg"
         else:
-            url = url[:4] + ".png"
-            target_file = target_file[:4] + ".png"
+            url = url[:-4] + ".png"
+            target_file = target_file[:-4] + ".png"
 
         try:
             download_image(url, target_file, True)
@@ -108,71 +111,93 @@ def download_image(url, target_file, should_throw):
     except urlReq.HTTPError as E:
         print ('Can not get ' + url)
         if (should_throw):
-            raise urlReq.HTTPError(E)
+            raise
 
 
-args = setup_arguments()
-
-temp_dl_folder = "/tmp/tmp_manga/images/"
-temp_chapter_folder = "/tmp/tmp_manga/chapters/"
-
-url = args.url
-
-chapter_names = []
-
-# Prepare temp dl folder
-try:
-    os.makedirs(temp_dl_folder)
-except OSError:
-    pass
-
-if args.chapters > 1:
-    try:
-        os.makedirs(temp_chapter_folder)
-    except OSError:
-        pass
-
-ch = 0
-
-while ch < args.chapters:
-    chapter_output = args.output
-    chapter_archive = "ch " + str(ch + args.initialchapter).zfill(3) + ".cbz"
-
-    content = get_page_content(url)
-    soup = BeautifulSoup(content)
-
-    pages = soup.find(id='page_select')
-    page_count = len(pages.find_all('option'))
-
-    chapter_select = soup.find("select", attrs = {"name":"chapter_select"})
-    current_chapter = chapter_select.find("option", selected="selected")
-    next_chapter = current_chapter.previous_sibling
-
-    if ch != args.chapters - 1:
-        url = next_chapter['value']
-
-    chapter_title = current_chapter.string
-
-    if (args.questionable):
-        # Remove v2 or v3 in chapter name
-        chapter_title = re.sub(r'(.*\d+)(?:v|V)\d(.*)',r'\1\2', chapter_title)
-        if (re.match(r'.*\d+\.\d.*', chapter_title)):
-            print (" omake? " + chapter_title)
-            ch = ch - 1
-            chapter_archive = "ch " +str(ch + args.initialchapter).zfill(3) + ".5.cbz"
-
-    chapter_names.append(chapter_archive + ':' + chapter_title)
-
-    if args.chapters > 1:
-        chapter_output = temp_chapter_folder + chapter_archive
-
-    print(chapter_archive)
-    download_chapter_images(temp_dl_folder, soup, page_count)
-    zip_and_zap(temp_dl_folder, chapter_output)
-
-    ch = ch + 1
-
-if args.chapters > 1:
+def write_comic_info(output, chapter_names, temp_chapter_folder):
     with open(temp_chapter_folder + 'comics.txt', 'w') as comics_info:
         comics_info.write('\n'.join(chapter_names))
-    zip_and_zap(temp_chapter_folder, args.output)
+    zip_and_zap(temp_chapter_folder, output)
+
+
+def prepare_folder(folder):
+    try:
+        os.makedirs(folder)
+    except OSError:
+        pass
+    return folder
+
+
+def download_chapter_archive(soup, archive_name, temp_folder, exact):
+    print (archive_name)
+    download_chapter_images(temp_folder, soup, exact)
+    zip_and_zap(temp_folder, archive_name)
+
+def get_current_chapter_tag(soup):
+    chapter_select = soup.find("select", attrs = {"name":"chapter_select"})
+    current_chapter = chapter_select.find("option", selected="selected")
+    return current_chapter
+
+def get_chapter_title(soup):
+    current_chapter_tag = get_current_chapter_tag(soup)
+    chapter_title = current_chapter_tag.string
+    chapter_title = re.sub(r'(.*\d+)(?:v|V)\d(.*)',r'\1\2', chapter_title)
+    return chapter_title
+
+def get_next_chapter_url_sequential(soup):
+    current_chapter_tag = get_current_chapter_tag(soup)
+    next_chapter = current_chapter_tag.previous_sibling
+    if (next_chapter):
+        return next_chapter['value']
+
+def get_page_count(soup):
+    pages = soup.find(id='page_select')
+    page_count = len(pages.find_all('option'))
+    return page_count
+
+def is_omake(chapter_title):
+    if (re.match(r'.*\d+\.\d.*', chapter_title)):
+        print (" omake? " + chapter_title)
+        return True
+
+    return False
+
+
+def get_archive_name(chapter, omake):
+    if omake:
+        return "ch " +str(chapter).zfill(3) + ".5.cbz"
+    else:
+        return "ch " +str(chapter).zfill(3) + ".cbz"
+
+def main():
+    args = setup_arguments()
+    temp_image_folder = prepare_folder("/tmp/tmp_manga/images/")
+    soup = get_page_soup(args.url)
+
+    if args.chapters > 1:
+        temp_chapter_folder = prepare_folder("/tmp/tmp_manga/chapters/")
+        chapter_names = []
+        downloaded_chapter = 0
+
+        while downloaded_chapter < args.chapters:
+            chapter_title = get_chapter_title(soup)
+            omake = is_omake(chapter_title)
+
+            chapter = args.initialchapter + downloaded_chapter
+            chapter_archive = get_archive_name(chapter, omake)
+            chapter_output = temp_chapter_folder + chapter_archive
+            download_chapter_archive(soup, chapter_output, temp_image_folder, args.exact)
+            chapter_names.append(chapter_archive + ':' + chapter_title)
+
+            if downloaded_chapter != args.chapters - 1:
+                url = get_next_chapter_url_sequential(soup)
+                soup = get_page_soup(url)
+
+            if not omake:
+                downloaded_chapter = downloaded_chapter + 1
+        write_comic_info(args.output, chapter_names, temp_chapter_folder)
+    else:
+        download_chapter_archive(soup, args.output, temp_image_folder, args.exact)
+
+if __name__ == '__main__':
+    main()
