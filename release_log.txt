@@ -1,0 +1,12 @@
+Version 0.1
+***********
+- Using Batoto as source
+- Individual manga chapter download
+- Volume download including generating comics.txt (--chapters and --initialchapters)
+- Omake detection
+- Subsequent release detection (V2 or v3)
+- Download by pattern or by html tag (--exact argument)
+- Skip duplicated chapter by using --exact argument
+- Output folder selection (--output argument)
+- Command line arguments with help
+- Request gzipped html page
