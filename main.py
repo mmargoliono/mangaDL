@@ -21,12 +21,15 @@ def setup_arguments():
     return parser.parse_args()
 
 def get_page_content(url):
-    response = urlReq.urlopen(url)
+    request = urlReq.Request(url)
+    request.add_header("Accept-Encoding","gzip")
+    response = urlReq.urlopen(request)
     content = response.read()
     if response.headers['Content-Encoding'] == 'gzip':
         compressedstream = io.BytesIO(content)
         gzipper = gzip.GzipFile(fileobj=compressedstream, mode="rb")
         content = gzipper.read()
+
     return content
 
 def get_page_soup(url):
