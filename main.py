@@ -147,11 +147,17 @@ def get_chapter_title(soup):
     chapter_title = re.sub(r'(.*\d+)(?:v|V)\d(.*)',r'\1\2', chapter_title)
     return chapter_title
 
-def get_next_chapter_url_sequential(soup):
+def get_next_chapter_soup_sequential(soup):
     current_chapter_tag = get_current_chapter_tag(soup)
     next_chapter = current_chapter_tag.previous_sibling
     if (next_chapter):
-        return next_chapter['value']
+        return get_page_soup(next_chapter['value'])
+
+def get_next_chapter_soup_traverse(soup):
+    pages = soup.find(id='page_select')
+    last_page = pages.find_all('option')[-1]    
+    last_page_soup = get_page_soup(last_page['value'])    
+    return get_next_page_soup(last_page_soup)
 
 def get_page_count(soup):
     pages = soup.find(id='page_select')
@@ -168,7 +174,7 @@ def is_omake(chapter_title):
 
 def get_archive_name(chapter, omake):
     if omake:
-        return "ch " +str(chapter).zfill(3) + ".5.cbz"
+        return "ch " +str(chapter - 1).zfill(3) + ".5.cbz"
     else:
         return "ch " +str(chapter).zfill(3) + ".cbz"
 
@@ -193,8 +199,10 @@ def main():
             chapter_names.append(chapter_archive + ':' + chapter_title)
 
             if downloaded_chapter != args.chapters - 1:
-                url = get_next_chapter_url_sequential(soup)
-                soup = get_page_soup(url)
+                if args.exact:
+                    soup = get_next_chapter_soup_traverse(soup)
+                else:
+                    soup = get_next_chapter_soup_sequential(soup)
 
             if not omake:
                 downloaded_chapter = downloaded_chapter + 1
