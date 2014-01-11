@@ -198,7 +198,7 @@ def main():
             download_chapter_archive(soup, chapter_output, temp_image_folder, args.exact)
             chapter_names.append(chapter_archive + ':' + chapter_title)
 
-            if downloaded_chapter != args.chapters - 1:
+            if downloaded_chapter != args.chapters - 1 or omake:
                 if args.exact:
                     soup = get_next_chapter_soup_traverse(soup)
                 else:
