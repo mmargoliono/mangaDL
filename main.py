@@ -164,17 +164,28 @@ def get_page_count(soup):
     page_count = len(pages.find_all('option'))
     return page_count
 
-def is_omake(chapter_title):
-    if (re.match(r'.*\d+\.\d.*', chapter_title)):
-        print (" omake? " + chapter_title)
-        return True
+def get_omake_number(chapter_title):
+    omake_number = 0
+    match = re.match(r'.*\d+\.(\d).*', chapter_title)
+    if match:
+        omake_number = int(match.group(1))
+    else:
+        match = re.match(r'.*(?:O|o)make\s*(\d).*', chapter_title)
+        if match:
+            omake_number = int(match.group(1))
+        else:
+            match = re.match(r'.*(?:O|o)make((:.*)|$)', chapter_title)
+            if match:
+                omake_number = 5
 
-    return False
+    if omake_number != 0:
+        print (str(omake_number) + " omake? " + chapter_title)
 
+    return omake_number
 
-def get_archive_name(chapter, omake):
-    if omake:
-        return "ch " +str(chapter - 1).zfill(3) + ".5.cbz"
+def get_archive_name(chapter, omake_number):
+    if omake_number != 0:
+        return "ch " +str(chapter - 1).zfill(3) + "." + str(omake_number)  + ".cbz"
     else:
         return "ch " +str(chapter).zfill(3) + ".cbz"
 
@@ -190,21 +201,21 @@ def main():
 
         while downloaded_chapter < args.chapters:
             chapter_title = get_chapter_title(soup)
-            omake = is_omake(chapter_title)
+            omake_number = get_omake_number(chapter_title)
 
             chapter = args.initialchapter + downloaded_chapter
-            chapter_archive = get_archive_name(chapter, omake)
+            chapter_archive = get_archive_name(chapter, omake_number)
             chapter_output = temp_chapter_folder + chapter_archive
             download_chapter_archive(soup, chapter_output, temp_image_folder, args.exact)
             chapter_names.append(chapter_archive + ':' + chapter_title)
 
-            if downloaded_chapter != args.chapters - 1 or omake:
+            if downloaded_chapter != args.chapters - 1 or omake_number > 0:
                 if args.exact:
                     soup = get_next_chapter_soup_traverse(soup)
                 else:
                     soup = get_next_chapter_soup_sequential(soup)
 
-            if not omake:
+            if omake_number == 0:
                 downloaded_chapter = downloaded_chapter + 1
         write_comic_info(args.output, chapter_names, temp_chapter_folder)
     else:
