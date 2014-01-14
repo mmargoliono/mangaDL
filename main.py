@@ -7,6 +7,7 @@ import argparse
 import io
 import gzip
 import re
+import tempfile
 
 from bs4 import BeautifulSoup
 
@@ -122,19 +123,11 @@ def write_comic_info(output, chapter_names, temp_chapter_folder):
         comics_info.write('\n'.join(chapter_names))
     zip_and_zap(temp_chapter_folder, output)
 
-
-def prepare_folder(folder):
-    try:
-        os.makedirs(folder)
-    except OSError:
-        pass
-    return folder
-
-
-def download_chapter_archive(soup, archive_name, temp_folder, exact):
+def download_chapter_archive(soup, archive_name, exact):
     print (archive_name)
-    download_chapter_images(temp_folder, soup, exact)
-    zip_and_zap(temp_folder, archive_name)
+    with tempfile.TemporaryDirectory() as temp_images_folder:
+        download_chapter_images(temp_images_folder + "/", soup, exact)
+        zip_and_zap(temp_images_folder, archive_name)
 
 def get_current_chapter_tag(soup):
     chapter_select = soup.find("select", attrs = {"name":"chapter_select"})
@@ -191,35 +184,34 @@ def get_archive_name(chapter, omake_number):
 
 def main():
     args = setup_arguments()
-    temp_image_folder = prepare_folder("/tmp/tmp_manga/images/")
     soup = get_page_soup(args.url)
 
     if args.chapters > 1:
-        temp_chapter_folder = prepare_folder("/tmp/tmp_manga/chapters/")
         chapter_names = []
         downloaded_chapter = 0
+        
+        with tempfile.TemporaryDirectory() as temp_chapter_folder:
+            while downloaded_chapter < args.chapters:
+                chapter_title = get_chapter_title(soup)
+                omake_number = get_omake_number(chapter_title)
 
-        while downloaded_chapter < args.chapters:
-            chapter_title = get_chapter_title(soup)
-            omake_number = get_omake_number(chapter_title)
+                chapter = args.initialchapter + downloaded_chapter
+                chapter_archive = get_archive_name(chapter, omake_number)
+                chapter_output = temp_chapter_folder + "/" + chapter_archive
+                download_chapter_archive(soup, chapter_output, args.exact)
+                chapter_names.append(chapter_archive + ':' + chapter_title)
 
-            chapter = args.initialchapter + downloaded_chapter
-            chapter_archive = get_archive_name(chapter, omake_number)
-            chapter_output = temp_chapter_folder + chapter_archive
-            download_chapter_archive(soup, chapter_output, temp_image_folder, args.exact)
-            chapter_names.append(chapter_archive + ':' + chapter_title)
+                if downloaded_chapter != args.chapters - 1 or omake_number > 0:
+                    if args.exact:
+                        soup = get_next_chapter_soup_traverse(soup)
+                    else:
+                        soup = get_next_chapter_soup_sequential(soup)
 
-            if downloaded_chapter != args.chapters - 1 or omake_number > 0:
-                if args.exact:
-                    soup = get_next_chapter_soup_traverse(soup)
-                else:
-                    soup = get_next_chapter_soup_sequential(soup)
-
-            if omake_number == 0:
-                downloaded_chapter = downloaded_chapter + 1
-        write_comic_info(args.output, chapter_names, temp_chapter_folder)
+                if omake_number == 0:
+                    downloaded_chapter = downloaded_chapter + 1
+            write_comic_info(args.output, chapter_names, temp_chapter_folder)
     else:
-        download_chapter_archive(soup, args.output, temp_image_folder, args.exact)
+        download_chapter_archive(soup, args.output, args.exact)
 
 if __name__ == '__main__':
     main()
