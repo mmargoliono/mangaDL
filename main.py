@@ -189,9 +189,10 @@ def main():
     if args.chapters > 1:
         chapter_names = []
         downloaded_chapter = 0
-        
+        index = 0
+
         with tempfile.TemporaryDirectory() as temp_chapter_folder:
-            while downloaded_chapter < args.chapters:
+            while index < args.chapters:
                 chapter_title = get_chapter_title(soup)
                 omake_number = get_omake_number(chapter_title)
 
@@ -209,7 +210,9 @@ def main():
 
                 if omake_number == 0:
                     downloaded_chapter = downloaded_chapter + 1
-            write_comic_info(args.output, chapter_names, temp_chapter_folder)
+                
+                index = index + 1
+            write_comic_info(args.output, chapter_names, temp_chapter_folder + "/")
     else:
         download_chapter_archive(soup, args.output, args.exact)
 
