@@ -11,6 +11,35 @@ import tempfile
 
 from bs4 import BeautifulSoup
 
+class DownloadHelper:
+
+
+    def get_page_content(self, url):
+        request = urlReq.Request(url)
+        request.add_header("Accept-Encoding","gzip")
+        response = urlReq.urlopen(request)
+        content = response.read()
+        if response.headers['Content-Encoding'] == 'gzip':
+            compressedstream = io.BytesIO(content)
+            gzipper = gzip.GzipFile(fileobj=compressedstream, mode="rb")
+            content = gzipper.read()
+
+        return content
+
+    def get_page_soup(self, url):
+        content = self.get_page_content(url)
+        return BeautifulSoup(content)
+
+    def download_image(self, url, target_file):
+        try:
+            urlReq.urlretrieve(url, target_file)
+            print (url + ' -> ' + target_file)
+        except urlReq.HTTPError as E:
+            print ('Can not get ' + url)
+
+
+download_helper = DownloadHelper()
+
 def setup_arguments():
     parser = argparse.ArgumentParser()
     parser.add_argument('url', help = 'Url of any page within a chapter')
@@ -18,22 +47,6 @@ def setup_arguments():
     parser.add_argument('-c', '--chapters', type = int, help = 'How many chapters should be downloaded', default=1)
     parser.add_argument('-i', '--initialchapter', type = int, help = 'Initial number for Chapter sequence', default=1)
     return parser.parse_args()
-
-def get_page_content(url):
-    request = urlReq.Request(url)
-    request.add_header("Accept-Encoding","gzip")
-    response = urlReq.urlopen(request)
-    content = response.read()
-    if response.headers['Content-Encoding'] == 'gzip':
-        compressedstream = io.BytesIO(content)
-        gzipper = gzip.GzipFile(fileobj=compressedstream, mode="rb")
-        content = gzipper.read()
-
-    return content
-
-def get_page_soup(url):
-    content = get_page_content(url)
-    return BeautifulSoup(content)
 
 def get_image_url(soup):
     img = soup.find(id='comic_page')
@@ -63,8 +76,7 @@ def download_chapter_images(target_folder, soup):
         url = get_image_url(soup)
         soup = get_next_page_soup(soup)
         target_file = target_folder + formatted_n + url[-4:]
-        download_image(url, target_file, False)
-
+        download_helper.download_image(url, target_file)
 
 def get_next_image_url_by_pattern(soup, digits, formatted_n):
     img_url = get_image_url(soup)
@@ -77,16 +89,7 @@ def get_next_image_url_by_pattern(soup, digits, formatted_n):
 def get_next_page_soup(soup):
     img = soup.find(id='comic_page')
     next_page_url = img.parent['href']
-    return get_page_soup(next_page_url)
-
-def download_image(url, target_file, should_throw):
-    try:
-        urlReq.urlretrieve(url, target_file)
-        print (url + ' -> ' + target_file)
-    except urlReq.HTTPError as E:
-        print ('Can not get ' + url)
-        if (should_throw):
-            raise
+    return download_helper.get_page_soup(next_page_url)
 
 
 def write_comic_info(output, chapter_names, temp_chapter_folder):
@@ -114,7 +117,7 @@ def get_chapter_title(soup):
 def get_next_chapter_soup_traverse(soup):
     pages = soup.find(id='page_select')
     last_page = pages.find_all('option')[-1]    
-    last_page_soup = get_page_soup(last_page['value'])    
+    last_page_soup = download_helper.get_page_soup(last_page['value'])    
     return get_next_page_soup(last_page_soup)
 
 def get_page_count(soup):
@@ -149,7 +152,7 @@ def get_archive_name(chapter, omake_number):
 
 def main():
     args = setup_arguments()
-    soup = get_page_soup(args.url)
+    soup = download_helper.get_page_soup(args.url)
 
     if args.chapters > 1:
         chapter_names = []
