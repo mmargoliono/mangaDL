@@ -18,14 +18,14 @@ class BaseDownloader():
         self.chapters = chapters
 
     def download(self):
-        soup = self.get_page_soup(self.url)
         if self.chapters > 1:
             chapter_names = []
+            urls = self.get_chapters_urls(self.url, self.chapters)
             downloaded_chapter = 0
-            index = 0
 
             with tempfile.TemporaryDirectory() as temp_chapter_folder:
-                while index < self.chapters:
+                for url in urls:
+                    soup = self.get_page_soup(url)
                     chapter_title = self.get_chapter_title(soup)
                     omake_number = self.get_omake_number(chapter_title)
 
@@ -35,18 +35,22 @@ class BaseDownloader():
                     self.download_chapter_archive(soup, chapter_output)
                     chapter_names.append(chapter_archive + ':' + chapter_title)
 
-                    if downloaded_chapter != self.chapters - 1 or omake_number > 0:
-                        next_chapter_url = self.get_next_chapter_url(soup)                        
-                        soup = self.get_page_soup(next_chapter_url)
-
                     if omake_number == 0:
                         downloaded_chapter = downloaded_chapter + 1
 
-                    index = index + 1
                 self.write_comic_info(self.output, chapter_names, temp_chapter_folder + "/")
         else:
+            soup = self.get_page_soup(self.url)
             self.download_chapter_archive(soup, self.output)
 
+    def get_chapters_urls(self, start_url, chapter_count):
+        urls = [start_url]
+        url = start_url
+        for i in range(chapter_count - 1):
+            soup = self.get_page_soup(url)
+            url = self.get_next_chapter_url(soup)
+            urls.append(url)
+        return urls
 
     def get_page_content(self, url):
         request = urlreq.Request(url)
