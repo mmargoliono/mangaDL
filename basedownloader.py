@@ -14,14 +14,13 @@ class BaseDownloader():
     def __init__(self, url, output, chapters=1, initial_chapter=1):
         self.url = url
         self.output = output
-        self.initial_chapter = initial_chapter
+        self.current_chapter = initial_chapter
         self.chapters = chapters
 
     def download(self):
         if self.chapters > 1:
             chapter_names = []
             urls = self.get_chapters_urls(self.url, self.chapters)
-            downloaded_chapter = 0
 
             with tempfile.TemporaryDirectory() as temp_chapter_folder:
                 for url in urls:
@@ -29,14 +28,10 @@ class BaseDownloader():
                     chapter_title = self.get_chapter_title(soup)
                     omake_number = self.get_omake_number(chapter_title)
 
-                    chapter = self.initial_chapter + downloaded_chapter
-                    chapter_archive = self.get_archive_name(chapter, omake_number)
+                    chapter_archive = self.get_archive_name(omake_number)
                     chapter_output = temp_chapter_folder + "/" + chapter_archive
                     self.download_chapter_archive(soup, chapter_output)
                     chapter_names.append(chapter_archive + ':' + chapter_title)
-
-                    if omake_number == 0:
-                        downloaded_chapter = downloaded_chapter + 1
 
                 self.write_comic_info(self.output, chapter_names, temp_chapter_folder + "/")
         else:
@@ -93,29 +88,30 @@ class BaseDownloader():
             self.zip_and_zap(temp_images_folder, archive_name)
 
     def get_omake_number(self, chapter_title):
-        omake_number = 0
         match = re.match(r'.*\d+\.(\d).*', chapter_title)
         if match:
             omake_number = int(match.group(1))
-        else:
-            match = re.match(r'.*(?:O|o)make\s*(\d).*', chapter_title)
-            if match:
-                omake_number = int(match.group(1))
-            else:
-                match = re.match(r'.*(?:O|o)make((:.*)|$)', chapter_title)
-                if match:
-                    omake_number = 5
+            return omake_number
 
+        match = re.match(r'.*(?:O|o)make\s*(\d).*', chapter_title)
+        if match:
+            omake_number = int(match.group(1))
+            return omake_number
+
+        match = re.match(r'.*(?:O|o)make((:.*)|$)', chapter_title)
+        if match:
+            omake_number = 5
+            return omake_number
+
+        return 0
+
+    def get_archive_name(self, omake_number):
         if omake_number != 0:
-            print (str(omake_number) + " omake? " + chapter_title)
-
-        return omake_number
-
-    def get_archive_name(self, chapter, omake_number):
-        if omake_number != 0:
-            return "ch " +str(chapter - 1).zfill(3) + "." + str(omake_number)  + ".cbz"
+            return "ch " +str(self.current_chapter).zfill(3) + "." + str(omake_number)  + ".cbz"
         else:
-            return "ch " +str(chapter).zfill(3) + ".cbz"
+            archive_name = "ch " +str(self.current_chapter).zfill(3) + ".cbz"
+            self.current_chapter = self.current_chapter + 1
+            return archive_name
 
     def zip_and_zap(self, target_folder, output_file):
         try:
