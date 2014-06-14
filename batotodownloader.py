@@ -15,7 +15,7 @@ class BatotoDownloader(BaseDownloader):
         img = soup.find(id = 'comic_page')
         return img['src']
 
-    def get_current_chapter_tag(self, soup):
+    def _get_current_chapter_tag(self, soup):
         chapter_select = soup.find("select", attrs = {"name":"chapter_select"})
         current_chapter = chapter_select.find("option", selected="selected")
         return current_chapter
@@ -23,10 +23,10 @@ class BatotoDownloader(BaseDownloader):
     def get_chapter_title(self, soup):
         ''' Get the current chapter's title.
 
-        This implementation will try to remove 'v2' (or any vX) 
+        This implementation will try to remove 'v2' (or any vX)
         which is usually used by scanlations to indicate an updated release.
         '''
-        current_chapter_tag = self.get_current_chapter_tag(soup)
+        current_chapter_tag = self._get_current_chapter_tag(soup)
         chapter_title = current_chapter_tag.string
         chapter_title = re.sub(r'(.*\d+)(?:v|V)\d(.*)',r'\1\2', chapter_title)
         return chapter_title
