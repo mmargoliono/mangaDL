@@ -26,9 +26,7 @@ class BaseDownloader():
                 for url in self.get_chapters_urls(self.url, self.chapters):
                     soup = self.get_page_soup(url)
                     chapter_title = self.get_chapter_title(soup)
-                    omake_number = self.get_omake_number(chapter_title)
-
-                    chapter_archive = self.get_archive_name(omake_number)
+                    chapter_archive = self.get_archive_name(chapter_title)
                     chapter_output = temp_chapter_folder + "/" + chapter_archive
                     self.download_chapter_archive(soup, chapter_output)
                     chapter_names.append(chapter_archive + ':' + chapter_title)
@@ -94,29 +92,33 @@ class BaseDownloader():
 
     def get_omake_number(self, chapter_title):
         ''' Get a dot point number for omake chapter. '''
+        # Detect whether chapter title has x.x format
         match = re.match(r'.*\d+\.(\d).*', chapter_title)
         if match:
-            omake_number = int(match.group(1))
-            return omake_number
+            return int(match.group(1))
 
+        # Detect whether chapter title has Omake X format
         match = re.match(r'.*(?:O|o)make\s*(\d).*', chapter_title)
         if match:
-            omake_number = int(match.group(1))
-            return omake_number
+            return int(match.group(1))
 
+        # Detect whether chapter title only Has Omake without number
         match = re.match(r'.*(?:O|o)make((:.*)|$)', chapter_title)
         if match:
-            omake_number = 5
-            return omake_number
+            return 5 # Default omake number
 
         return 0
 
-    def get_archive_name(self, omake_number):
+    def get_archive_name(self, chapter_title):
         ''' Get archive name for the current chapter. '''
-        if omake_number != 0:
-            return "ch " +str(self.current_chapter).zfill(3) + "." + str(omake_number)  + ".cbz"
+        omake_number = self.get_omake_number(chapter_title)
+        archive_name_format = "ch {chapter:03}{omake}.cbz"
+        if omake_number:
+            return archive_name_format.format(chapter = self.current_chapter,
+                                              omake = '.' + str(omake_number))
         else:
-            archive_name = "ch " +str(self.current_chapter).zfill(3) + ".cbz"
+            archive_name = archive_name_format.format(chapter = self.current_chapter,
+                                                      omake = '' )
             self.current_chapter = self.current_chapter + 1
             return archive_name
 
