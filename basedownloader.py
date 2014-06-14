@@ -9,15 +9,17 @@ import urllib.request as urlreq
 from bs4 import BeautifulSoup
 
 class BaseDownloader():
-
+    ''' A comic downloader that will crawl website and download the image as an archive. '''
 
     def __init__(self, url, output, chapters=1, initial_chapter=1):
+        ''' Init the downloader with the download options. '''
         self.url = url
         self.output = output
         self.current_chapter = initial_chapter
         self.chapters = chapters
 
     def download(self):
+        ''' Download manga based on the option specified. '''
         if self.chapters > 1:
             chapter_names = []
             urls = self.get_chapters_urls(self.url, self.chapters)
@@ -39,6 +41,7 @@ class BaseDownloader():
             self.download_chapter_archive(soup, self.output)
 
     def get_chapters_urls(self, start_url, chapter_count):
+        ''' Get the list of chapter's base url. '''
         urls = [start_url]
         url = start_url
         for i in range(chapter_count - 1):
@@ -48,6 +51,7 @@ class BaseDownloader():
         return urls
 
     def get_page_content(self, url):
+        ''' Get a webpage content string. '''
         request = urlreq.Request(url)
         request.add_header("Accept-Encoding","gzip")
         response = urlreq.urlopen(request)
@@ -60,10 +64,12 @@ class BaseDownloader():
         return content
 
     def get_page_soup(self, url):
+        ''' Get a webpage as a BeautifulSoup object. '''
         content = self.get_page_content(url)
         return BeautifulSoup(content)
 
     def download_image(self, url, target_file):
+        ''' Download a single image. '''
         try:
             urlreq.urlretrieve(url, target_file)
             print (url + ' -> ' + target_file)
@@ -71,6 +77,7 @@ class BaseDownloader():
             print ('Can not get ' + url)
 
     def download_chapter_images(self, target_folder, soup):
+        ''' Download a chapter images to a folder. '''
         page_count = self.get_page_count(soup)
         digits = len(str(page_count))
         for n in range(1, page_count + 1):
@@ -82,12 +89,14 @@ class BaseDownloader():
             soup = self.get_page_soup(next_page_url)
 
     def download_chapter_archive(self, soup, archive_name):
+        ''' Download a chapter as a zip archive. '''
         print (archive_name)
         with tempfile.TemporaryDirectory() as temp_images_folder:
             self.download_chapter_images(temp_images_folder + "/", soup)
             self.zip_and_zap(temp_images_folder, archive_name)
 
     def get_omake_number(self, chapter_title):
+        ''' Get a dot point number for omake chapter. '''
         match = re.match(r'.*\d+\.(\d).*', chapter_title)
         if match:
             omake_number = int(match.group(1))
@@ -106,6 +115,7 @@ class BaseDownloader():
         return 0
 
     def get_archive_name(self, omake_number):
+        ''' Get archive name for the current chapter. '''
         if omake_number != 0:
             return "ch " +str(self.current_chapter).zfill(3) + "." + str(omake_number)  + ".cbz"
         else:
@@ -114,6 +124,7 @@ class BaseDownloader():
             return archive_name
 
     def zip_and_zap(self, target_folder, output_file):
+        ''' Create a zip archive and remove source files. '''
         try:
             os.remove(output_file)
         except OSError:
@@ -130,6 +141,11 @@ class BaseDownloader():
         zipf.close()
 
     def write_comic_info(self, output, chapter_names, temp_chapter_folder):
+        ''' Create a comic book collection.
+        
+        The comic will be created as calibre comic format (.cbc).
+        See: http://manual.calibre-ebook.com/conversion.html#comic-book-collections
+        '''
         with open(temp_chapter_folder + 'comics.txt', 'w') as comics_info:
             comics_info.write('\n'.join(chapter_names))
         self.zip_and_zap(temp_chapter_folder, output)
