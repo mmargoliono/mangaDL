@@ -22,10 +22,8 @@ class BaseDownloader():
         ''' Download manga based on the option specified. '''
         if self.chapters > 1:
             chapter_names = []
-            urls = self.get_chapters_urls(self.url, self.chapters)
-
             with tempfile.TemporaryDirectory() as temp_chapter_folder:
-                for url in urls:
+                for url in self.get_chapters_urls(self.url, self.chapters):
                     soup = self.get_page_soup(url)
                     chapter_title = self.get_chapter_title(soup)
                     omake_number = self.get_omake_number(chapter_title)
@@ -41,14 +39,13 @@ class BaseDownloader():
             self.download_chapter_archive(soup, self.output)
 
     def get_chapters_urls(self, start_url, chapter_count):
-        ''' Get the list of chapter's base url. '''
-        urls = [start_url]
+        ''' Get the list of chapter's base url. '''        
         url = start_url
+        yield url
         for i in range(chapter_count - 1):
             soup = self.get_page_soup(url)
             url = self.get_next_chapter_url(soup)
-            urls.append(url)
-        return urls
+            yield url
 
     def get_page_content(self, url):
         ''' Get a webpage content string. '''
