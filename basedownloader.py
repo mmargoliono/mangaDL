@@ -163,7 +163,8 @@ class BaseDownloader():
         config['history'] = {
             'lasturl': self.url,
             'lastchapter':  self.current_chapter,
-            'nexturl': url
+            'nexturl': url,
+            'chapters': self.chapters,
         }
 
         with open(config_path, 'w') as config_file:
