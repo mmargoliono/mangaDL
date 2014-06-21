@@ -5,6 +5,7 @@ import io
 import re
 import os
 import urllib.request as urlreq
+import configparser
 
 from bs4 import BeautifulSoup
 
@@ -32,6 +33,12 @@ class BaseDownloader():
                     chapter_names.append(chapter_archive + ':' + chapter_title)
 
                 self.write_comic_info(self.output, chapter_names, temp_chapter_folder + "/")
+                try:
+                    url = self.get_next_chapter_url(soup)
+                    self.write_config(url)
+                except Exception as ex:
+                    print(ex)
+                    pass
         else:
             soup = self.get_page_soup(self.url)
             self.download_chapter_archive(soup, self.output)
@@ -148,3 +155,16 @@ class BaseDownloader():
         with open(temp_chapter_folder + 'comics.txt', 'w') as comics_info:
             comics_info.write('\n'.join(chapter_names))
         self.zip_and_zap(temp_chapter_folder, output)
+
+    def write_config(self, url):
+        config_path = os.path.expanduser("~/.mangadl.rc")
+        config = configparser.ConfigParser()
+        config.read(config_path)
+        config['history'] = {
+            'lasturl': self.url,
+            'lastchapter':  self.current_chapter,
+            'nexturl': url
+        }
+
+        with open(config_path, 'w') as config_file:
+            config.write(config_file)
