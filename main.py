@@ -7,7 +7,7 @@ from batotodownloader import BatotoDownloader
 
 def setup_arguments():
     parser = argparse.ArgumentParser()
-    parser.add_argument('url', help = 'Url of any page within a chapter')
+    parser.add_argument('-u', '--url', help = 'Url of any page within a chapter', default='')
     parser.add_argument('-o', '--output', help = 'Archive output', default = "/tmp/comics.cbz")
     parser.add_argument('-c', '--chapters', type = int, help = 'How many chapters should be downloaded', default=1)
     parser.add_argument('-i', '--initialchapter', type = int, help = 'Initial number for Chapter sequence', default=1)
@@ -24,14 +24,14 @@ def merge_arguments(args):
 
     history = config['history']
 
-    if 'lastchapter' in history:
+    if 'lastchapter' in history and args.initialchapter == 1:
         args.initialchapter = int (history['lastchapter'])
 
-    if 'nexturl' in history:
+    if 'nexturl' in history and not args.url:
         args.url = history['nexturl']
 
-    if 'chapters' in history:
-        args.chapters = history['chapters']
+    if 'chapters' in history and args.chapters == 1:
+        args.chapters = int (history['chapters'])
 
     return args
 
@@ -40,5 +40,6 @@ if __name__ == '__main__':
     if (args.load):
         args = merge_arguments(args)
 
-    downloader = BatotoDownloader(args.url, args.output, args.chapters, args.initialchapter)
-    downloader.download()
+    if args.url:
+        downloader = BatotoDownloader(args.url, args.output, args.chapters, args.initialchapter)
+        downloader.download()
