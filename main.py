@@ -3,7 +3,9 @@
 import argparse
 import configparser
 import os
+import re
 from batotodownloader import BatotoDownloader
+from mangahere_downloader import MangahereDownloader
 
 def setup_arguments():
     parser = argparse.ArgumentParser()
@@ -41,5 +43,10 @@ if __name__ == '__main__':
         args = merge_arguments(args)
 
     if args.url:
-        downloader = BatotoDownloader(args.url, args.output, args.chapters, args.initialchapter)
+        if re.search(r'bato(\.)*to', args.url):
+            downloader = BatotoDownloader(args.url, args.output, args.chapters, args.initialchapter)
+        elif re.search(r'mangahere', args.url):
+            downloader = MangahereDownloader(args.url, args.output, args.chapters, args.initialchapter)
+        else:
+            print ("No suitable downloader")
         downloader.download()

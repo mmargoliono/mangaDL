@@ -85,7 +85,11 @@ class BaseDownloader():
         for n in range(1, page_count + 1):
             formatted_n = str(n).zfill(digits)
             url = self.get_image_url(soup)
-            target_file = target_folder + formatted_n + url[-4:]
+            if ".jpg" in url:
+                ext = ".jpg"
+            elif ".png" in url:
+                ext = ".png"
+            target_file = target_folder + formatted_n + ext
             self.download_image(url, target_file)
             next_page_url = self.get_next_page_url(soup)
             soup = self.get_page_soup(next_page_url)
