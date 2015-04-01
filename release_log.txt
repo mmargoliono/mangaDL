@@ -1,4 +1,10 @@
-Version 0.1
+Version 0.2
+***********
+- Adding mangahere support
+- remove exact argument and always pick link from html response
+- Added test case for batoto downloader
+
+Version 0.1 (unttaged)
 ***********
 - Using Batoto as source
 - Individual manga chapter download
