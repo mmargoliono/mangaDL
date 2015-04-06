@@ -21,14 +21,23 @@ class MangahereDownloader(BaseDownloader):
         This implementation will try to remove 'v2' (or any vX)
         which is usually used by scanlations to indicate an updated release.
         '''
-        js_location = re.search(r'http://www.mangahere.co/get_chapters\d+.js\?v=\d+', soup.getText()).group()
-        self.js_content = str(self.get_page_content(js_location))
-        self.js_chapter = re.search(r'var\s*current_chapter\s*=\s*"([^"]*)"', soup.getText()).group(1)
-        chapter_regex = r'\["([^"]*)","http://www.mangahere.co/manga/"\+series_name\+"/' + self.js_chapter
-        chapter_title = re.search(chapter_regex, self.js_content).group(1)
+        chapter_regex = r'\["([^"]*)","http://www.mangahere.co/manga/"\+series_name\+"/' + self._get_js_chapter(soup)
+        chapter_title = re.search(chapter_regex, self._get_js_content(soup)).group(1)
         chapter_title = chapter_title.replace("\\'","'")
         chapter_title = re.sub(r'(.*\d+)(?:v|V)\d(.*)',r'\1\2', chapter_title)
         return chapter_title
+
+    def _get_js_chapter(self, soup):
+        match = re.search(r'var\s*current_chapter\s*=\s*"([^"]*)"', soup.getText())
+        return match.group(1) if match else -1
+
+    def _get_js_content(self, soup):
+        try:
+            return self._js_content
+        except AttributeError:
+            js_location = re.search(r'http://www.mangahere.co/get_chapters\d+.js\?v=\d+', soup.getText()).group()
+            self._js_content = str(self.get_page_content(js_location))
+            return self._js_content
 
     def get_next_page_url(self, soup):
         ''' Get the url of the next page. '''
@@ -36,9 +45,10 @@ class MangahereDownloader(BaseDownloader):
         next_page_url = img.parent['href']
         if ("javascript" in next_page_url):
             series_name = re.search(r'var\s*series_name\s*=\s*"([^"]*)"', soup.getText()).group(1)
-            next_url_regex = re.compile(r'"http://www.mangahere.co/manga/"\+series_name\+"/' + self.js_chapter + '/"][^\]]*' + 
+            js_chapter = self._get_js_chapter(soup)
+            next_url_regex = re.compile(r'"http://www.mangahere.co/manga/"\+series_name\+"/' + js_chapter + '/"][^\]]*' + 
                                          '"(http://www.mangahere.co/manga/"\+series_name\+"/[^"]*)"' , re.MULTILINE)
-            next_page_url = next_url_regex.search(self.js_content).group(1)
+            next_page_url = next_url_regex.search(self._get_js_content(soup)).group(1)
             next_page_url = next_page_url.replace("\"+series_name+\"",series_name)
         return next_page_url
 
